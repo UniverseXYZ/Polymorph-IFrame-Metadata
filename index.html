@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=yes">
+  <meta http-equiv="cache-control" content="no-cache">
+  <title>PolyTester</title>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+</head>
+<style>
+body {
+  background: #28272b;
+}
+* {
+  box-sizing: border-box;
+  outline: none;
+  margin: 0;
+  padding: 0;
+}
+.container {
+  margin: 0 auto;
+  width: 100vh;
+  height: 100vW;
+  max-width: 100vw;
+  max-height: 100vh;
+  position: relative;
+}
+/* ******* 2D - 3D toggle nav ******** */
+.nav {
+  width: 76px;
+  height: 40px;
+  background-color: #00000044;
+  border-radius: 20px;
+  position: absolute;
+  top: 20px;
+  left: 20px;
+}
+.nav-icon {
+  width: 32px;
+  height: 32px;
+  padding: 6px;
+  margin: 4px;
+  border-radius: 20px;
+  background-color: #00000000;
+  display: block;
+  float: left;
+  transition: .2s;
+  color: #fff;
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 14px;
+  cursor: pointer;
+}
+.nav-icon+.nav-icon {
+  margin-left: 0;
+}
+.nav-icon:hover {
+  background-color: #00000044;
+}
+.nav-icon.active {
+  background-color: #000000ff;
+}
+
+/* ******* badges ******** */
+.badges {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  max-width: 45%;
+}
+.badge {
+  width: 44px;
+  height: 44px;
+  float: right;
+  display: none;
+  position: relative;
+  cursor: help;
+}
+.badge.active {
+  display: block;
+}
+.badge img {
+  display: block;
+  width: 100%;
+  transition: .4s;
+  transform-origin: 50% 50%;
+}
+.badge:hover>img {
+  transform: scale(1.1);
+}
+.tooltip {
+  transition: .4s;
+  opacity: 0;
+  background-color: #000;
+  padding: 10px 18px;
+  border-radius: 4px;
+  position: absolute;
+  right: 0;
+  top: 100%;
+  color: #fff;
+  font-family: sans-serif;
+  font-size: 14px;
+  white-space: nowrap;
+}
+.tooltip::before {
+  content:'';
+  display: block;
+  position: absolute;
+  bottom: 100%;
+  right: 18px;
+  border-bottom: 4px solid #000;
+  border-right: 4px solid #0000;
+  border-left: 4px solid #0000;
+}
+.badge:hover .tooltip {
+  opacity: 1;
+  transition-delay: .2s;
+}
+/* ******* polymorph image ******** */
+.poly {
+  display: none;
+  background-color: #6666;
+}
+.poly img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+.poly.active {
+  display: block;
+}
+
+</style>
+<body>
+  <div class="container">
+    <div class="image">
+      <div id="poly-v1" class="poly active">
+        <img src="{{.ImgUrls.V1Img}}" />
+      </div>
+      <div id="poly-v2" class="poly">
+        <img src="{{.ImgUrls.V2Img}}" />
+      </div>
+    </div>
+    <div class="nav">
+      <img id="" class="nav-icon active" src="https://storage.cloud.google.com/iframe-source/img/icon-2d.svg" alt="2D"/>
+      <img class="nav-icon" src="https://storage.cloud.google.com/iframe-source/img/icon-3d.svg" alt="3D"/>
+    </div>
+    <div class="badges">
+    {{range .Badges}}
+      <div class="badge active">
+        <img class={{.Name}} src="{{.URL}}" alt={{.Name}}/>
+        <div class="tooltip">
+          {{.Name}}
+        </div>
+      </div>
+      {{end}}
+    </div>
+  </div>
+
+  <script>
+    $(".nav-icon").click(function () {
+      $(".nav-icon").toggleClass("active");
+      $(".image .poly").toggleClass("active");
+    });
+  </script>
+
+</body>
+
+</html>
