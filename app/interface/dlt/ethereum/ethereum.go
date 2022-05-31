@@ -3,6 +3,7 @@ package ethereum
 import (
 	"context"
 	"errors"
+
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
@@ -20,7 +21,7 @@ func (ec *EthereumClient) senderFromTransaction(transaction *types.Transaction) 
 		return nil, err
 	}
 
-	msg, err := transaction.AsMessage(types.NewEIP155Signer(chainID))
+	msg, err := transaction.AsMessage(types.NewEIP155Signer(chainID), chainID)
 
 	if err != nil {
 		return nil, err

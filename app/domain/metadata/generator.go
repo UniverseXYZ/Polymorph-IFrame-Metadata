@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"html/template"
 	"image"
 	"image/color"
 	"net/http"
 	"strings"
+	"text/template"
 
 	"cloud.google.com/go/storage"
 	"github.com/disintegration/imaging"
@@ -226,6 +226,7 @@ func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *st
 	if err := tmpl.Execute(&tpl, data); err != nil {
 		fmt.Println(err)
 	}
+
 	bucket.Write(tpl.Bytes())
 	if err := bucket.Close(); err != nil {
 		fmt.Println("createFile: unable to close bucket %q, file %q: %v", err)

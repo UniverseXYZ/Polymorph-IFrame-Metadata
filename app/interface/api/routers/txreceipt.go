@@ -2,6 +2,8 @@ package routers
 
 import (
 	"errors"
+	"net/http"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/render"
 	"github.com/polymorph-metadata/app/domain/txreceipt"
@@ -9,7 +11,6 @@ import (
 	parser "github.com/polymorph-metadata/app/interface/api/parser"
 	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
 	log "github.com/sirupsen/logrus"
-	"net/http"
 )
 
 type TxReceiptRequest struct {

@@ -2,13 +2,14 @@ package api
 
 import (
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/go-chi/cors"
 	"github.com/go-chi/render"
 	log "github.com/sirupsen/logrus"
-	"net/http"
-	"time"
 )
 
 type APIRoute http.Handler

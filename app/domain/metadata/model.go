@@ -1,19 +1,17 @@
 package metadata
 
 import (
-	"context"
 	"fmt"
-	"github.com/ethereum/go-ethereum/accounts/abi/bind"
-	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/ethclient"
-	"github.com/polymorph-metadata/app/config"
-	PolymorphRoot "github.com/polymorph-metadata/app/contracts"
-	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
-	"github.com/polymorph-metadata/structs"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/polymorph-metadata/app/config"
+	PolymorphRoot "github.com/polymorph-metadata/app/contracts"
+	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
+	"github.com/polymorph-metadata/structs"
 )
 
 const POLYMORPH_IMAGE_URL_V1 string = "https://storage.googleapis.com/polymorphs-v1-test/"
@@ -294,26 +292,25 @@ func badgeGeneContains(s string, list []string) bool {
 	return false
 }
 
-func assignBadges(id *big.Int, ethClient *ethclient.Client, address string, polymorphGenesList *[]string, badgesJsonMap *map[string][]string) *[]string {
+func assignBadges(id string, ethClient *ethereum.EthereumClient, address string, polymorphGenesList *[]string, badgesJsonMap *map[string][]string) *[]string {
 
 	contractAddress := common.HexToAddress(address)
-	contract, err := PolymorphRoot.NewPolymorphRoot(contractAddress, ethClient)
+	contract, err := PolymorphRoot.NewPolymorphRoot(contractAddress, ethClient.Client)
 	if err != nil {
 		return nil // TODO: Error
 	}
 
-	chainID, err := ethClient.NetworkID(context.Background())
+	iTokenId, _ := strconv.Atoi(id)
 
-	var auth *bind.TransactOpts
-	auth, err = bind.NewKeyedTransactorWithChainID() // TODO: Query without auth
-
-	tx, err := contract.IsNotVirgin(auth, id)
-	if err != nil {
-		return nil, err
-	}
+	isNotVirgin, _ := contract.IsNotVirgin(nil, big.NewInt(int64(iTokenId)))
 
 	var badges []string
 	var hasBadge bool
+
+	if !isNotVirgin {
+		badges = append(badges, "never-scrambled")
+	}
+
 	for badge, geneReqs := range *badgesJsonMap {
 		hasBadge = true
 		for i, genes := range geneReqs {
@@ -343,7 +340,7 @@ func (g *Genome) Metadata(ethClient *ethereum.EthereumClient, address string, to
 	m.Name = g.name(configService, tokenId)
 	m.Description = g.description(configService, tokenId)
 	m.ExternalUrl = fmt.Sprintf("%s%s", EXTERNAL_URL, tokenId)
-	m.Badges = assignBadges(ethClient, address, &revGenes, badgesJsonMap)
+	m.Badges = assignBadges(tokenId, ethClient, address, &revGenes, badgesJsonMap)
 
 	b := strings.Builder{}
 	t := strings.Builder{}

@@ -1,10 +1,11 @@
 package handlers
 
 import (
-	"github.com/ethereum/go-ethereum/ethclient"
 	"math/big"
 	"net/http"
 	"strconv"
+
+	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/go-chi/render"
@@ -14,7 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func HandleMetadataRequest(ethClient *ethclient.Client, address string, configService *config.ConfigService, badgesJsonMap *map[string][]string) func(w http.ResponseWriter, r *http.Request) {
+func HandleMetadataRequest(ethClient *ethereum.EthereumClient, address string, configService *config.ConfigService, badgesJsonMap *map[string][]string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		instance, err := contracts.NewPolymorph(common.HexToAddress(address), ethClient.Client)

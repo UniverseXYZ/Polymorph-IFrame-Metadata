@@ -1,9 +1,10 @@
 package main
 
 import (
+	"os"
+
 	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
 	log "github.com/sirupsen/logrus"
-	"os"
 )
 
 func connectToEthereum() *ethereum.EthereumClient {
