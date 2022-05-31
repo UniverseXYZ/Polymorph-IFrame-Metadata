@@ -311,6 +311,13 @@ func assignBadges(id string, ethClient *ethereum.EthereumClient, address string,
 		badges = append(badges, "never-scrambled")
 	}
 
+	leftHandGene := (*polymorphGenesList)[7]
+	rightHandGene := (*polymorphGenesList)[8]
+
+	if leftHandGene != "00" && rightHandGene != "00" && leftHandGene == rightHandGene {
+		badges = append(badges, "akimbo")
+	}
+
 	for badge, geneReqs := range *badgesJsonMap {
 		hasBadge = true
 		for i, genes := range geneReqs {
