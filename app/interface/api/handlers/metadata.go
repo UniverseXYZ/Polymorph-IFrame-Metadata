@@ -15,7 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func HandleMetadataRequest(ethClient *ethereum.EthereumClient, address string, configService *config.ConfigService, badgesJsonMap *map[string][]string) func(w http.ResponseWriter, r *http.Request) {
+func HandleMetadataRequest(ethClient *ethereumclient.EthereumClient, address string, configService *config.ConfigService, badgesJsonMap *map[string][]string) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 
 		instance, err := contracts.NewPolymorph(common.HexToAddress(address), ethClient.Client)

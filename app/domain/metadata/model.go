@@ -1,17 +1,19 @@
 package metadata
 
 import (
+	"context"
 	"fmt"
-	"math"
-	"math/big"
-	"strconv"
-	"strings"
-
+	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/polymorph-metadata/app/config"
 	PolymorphRoot "github.com/polymorph-metadata/app/contracts"
 	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
 	"github.com/polymorph-metadata/structs"
+	"math"
+	"math/big"
+	"os"
+	"strconv"
+	"strings"
 )
 
 const POLYMORPH_IMAGE_URL_V1 string = "https://storage.googleapis.com/polymorphs-v1-test/"
@@ -292,7 +294,47 @@ func badgeGeneContains(s string, list []string) bool {
 	return false
 }
 
-func assignBadges(id string, ethClient *ethereum.EthereumClient, address string, polymorphGenesList *[]string, badgesJsonMap *map[string][]string) *[]string {
+func singleTraitScrambled(id int, ethClient *ethereumclient.EthereumClient) bool {
+	header, err := ethClient.Client.HeaderByNumber(context.Background(), nil)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+	contractAddress := common.HexToAddress(os.Getenv("CONTRACT_ADDRESS"))
+
+	hashedTopic := common.HexToHash("0x8c0bdd7bca83c4e0c810cbecf44bc544a9dc0b9f265664e31ce0ce85f07a052b")
+
+	query := ethereum.FilterQuery{
+		FromBlock: big.NewInt(0),
+		ToBlock:   header.Number,
+		Addresses: []common.Address{
+			contractAddress,
+		},
+		Topics: [][]common.Hash{{hashedTopic}},
+	}
+	logs, err := ethClient.Client.FilterLogs(context.Background(), query)
+	if err != nil {
+		fmt.Println(err.Error())
+	}
+
+	morphCount := 0
+
+	id64 := big.NewInt(int64(id))
+
+	for i := range logs {
+		currentMorphedId := logs[i].Topics[1].Big()
+		if currentMorphedId.Cmp(id64) == 0 {
+			morphCount++
+		}
+		if morphCount > 1 {
+			fmt.Println("MorphCount", morphCount)
+			return false
+		}
+	}
+	fmt.Println("MorphCount", morphCount)
+	return morphCount == 1
+}
+
+func assignBadges(id string, ethClient *ethereumclient.EthereumClient, address string, polymorphGenesList *[]string, badgesJsonMap *map[string][]string) *[]string {
 
 	contractAddress := common.HexToAddress(address)
 	contract, err := PolymorphRoot.NewPolymorphRoot(contractAddress, ethClient.Client)
@@ -309,6 +351,10 @@ func assignBadges(id string, ethClient *ethereum.EthereumClient, address string,
 
 	if !isNotVirgin {
 		badges = append(badges, "never-scrambled")
+	}
+
+	if isNotVirgin && singleTraitScrambled(iTokenId, ethClient) {
+		badges = append(badges, "single-trait-scrambled")
 	}
 
 	leftHandGene := (*polymorphGenesList)[7]
@@ -337,7 +383,7 @@ func assignBadges(id string, ethClient *ethereum.EthereumClient, address string,
 	return &badges
 }
 
-func (g *Genome) Metadata(ethClient *ethereum.EthereumClient, address string, tokenId string, configService *config.ConfigService, rarityResponse structs.RarityServiceResponse, badgesJsonMap *map[string][]string) Metadata {
+func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address string, tokenId string, configService *config.ConfigService, rarityResponse structs.RarityServiceResponse, badgesJsonMap *map[string][]string) Metadata {
 	var m Metadata
 	genes := g.genes()
 
@@ -374,7 +420,7 @@ func (g *Genome) Metadata(ethClient *ethereum.EthereumClient, address string, to
 	image2DExists := imageExists(image2DURL)
 	image3DExists := imageExists(image3DURL)
 
-	animationExists := objectExists(animationURL)
+	//animationExists := objectExists(animationURL)
 
 	if !image2DExists {
 		generateAndSaveImage(genes, GCLOUD_SOURCE_V1_BUCKET_NAME, GCLOUD_UPLOAD_BUCKET_NAME)
@@ -386,12 +432,14 @@ func (g *Genome) Metadata(ethClient *ethereum.EthereumClient, address string, to
 	m.Image2D = image2DURL
 	m.Image3D = image3DURL
 
-	if !animationExists {
-		generateAndSaveIFrame(&animationURL, &image2DURL, &image3DURL, m.Badges)
-	}
+	cid := generateAndSaveIFrame(&animationURL, &image2DURL, &image3DURL, m.Badges)
+	//if !animationExists {
+	//	cid = generateAndSaveIFrame(&animationURL, &image2DURL, &image3DURL, m.Badges)
+	//} else {
+	//	cid = cidExists(&animationURL)
+	//}
 
-	m.AnimateUrl = IFRAME_UPLOADED_BASE_URL + animationURL
-
+	m.AnimateUrl = "ipfs://" + cid
 	return m
 }
 

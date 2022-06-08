@@ -7,11 +7,11 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-func connectToEthereum() *ethereum.EthereumClient {
+func connectToEthereum() *ethereumclient.EthereumClient {
 
 	nodeURL := os.Getenv("NODE_URL")
 
-	client, err := ethereum.NewEthereumClient(nodeURL)
+	client, err := ethereumclient.NewEthereumClient(nodeURL)
 
 	if err != nil {
 		log.Fatal(err)
