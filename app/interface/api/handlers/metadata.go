@@ -44,10 +44,11 @@ func HandleMetadataRequest(ethClient *ethereumclient.EthereumClient, address str
 			return
 		}
 
-		rarityResponse := GetRarityById(iTokenId)
+		// Disable it as we fetch this info from images function
+		// rarityResponse := GetRarityById(iTokenId)
 
 		g := metadata.Genome(genomeInt.String())
 
-		render.JSON(w, r, (&g).Metadata(ethClient, address, tokenId, configService, rarityResponse, badgesJsonMap))
+		render.JSON(w, r, (&g).Metadata(ethClient, address, tokenId, configService, badgesJsonMap))
 	}
 }

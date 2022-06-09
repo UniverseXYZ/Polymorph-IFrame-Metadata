@@ -8,7 +8,6 @@ import (
 	"github.com/polymorph-metadata/app/config"
 	PolymorphRoot "github.com/polymorph-metadata/app/contracts"
 	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
-	"github.com/polymorph-metadata/structs"
 	"math"
 	"math/big"
 	"os"
@@ -266,7 +265,7 @@ func getRankAttribute(rank int) IntegerAttribute {
 	}
 }
 
-func (g *Genome) attributes(configService *config.ConfigService, rarityResponse structs.RarityServiceResponse) []interface{} {
+func (g *Genome) attributes(configService *config.ConfigService) []interface{} {
 	gStr := string(*g)
 
 	res := []interface{}{}
@@ -279,8 +278,8 @@ func (g *Genome) attributes(configService *config.ConfigService, rarityResponse 
 	res = append(res, getWeaponLeftGeneAttribute(gStr, configService))
 	res = append(res, getWeaponRightGeneAttribute(gStr, configService))
 	res = append(res, getBackgroundGeneAttribute(gStr, configService))
-	res = append(res, getRarityScoreAttribute(rarityResponse.RarityScore))
-	res = append(res, getRankAttribute(rarityResponse.Rank))
+	//res = append(res, getRarityScoreAttribute(rarityResponse.RarityScore))
+	//res = append(res, getRankAttribute(rarityResponse.Rank))
 
 	return res
 }
@@ -294,6 +293,8 @@ func badgeGeneContains(s string, list []string) bool {
 	return false
 }
 
+// Counts all morph events for a particular polymorph id but doesn't work for our purposes because 8 morphs for a single trait
+// is still single trait scrambled
 func singleTraitScrambled(id int, ethClient *ethereumclient.EthereumClient) bool {
 	header, err := ethClient.Client.HeaderByNumber(context.Background(), nil)
 	if err != nil {
@@ -353,9 +354,9 @@ func assignBadges(id string, ethClient *ethereumclient.EthereumClient, address s
 		badges = append(badges, "never-scrambled")
 	}
 
-	if isNotVirgin && singleTraitScrambled(iTokenId, ethClient) {
-		badges = append(badges, "single-trait-scrambled")
-	}
+	//if isNotVirgin && singleTraitScrambled(iTokenId, ethClient) {
+	//	badges = append(badges, "single-trait-scrambled")
+	//}
 
 	leftHandGene := (*polymorphGenesList)[7]
 	rightHandGene := (*polymorphGenesList)[8]
@@ -383,13 +384,13 @@ func assignBadges(id string, ethClient *ethereumclient.EthereumClient, address s
 	return &badges
 }
 
-func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address string, tokenId string, configService *config.ConfigService, rarityResponse structs.RarityServiceResponse, badgesJsonMap *map[string][]string) Metadata {
+func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address string, tokenId string, configService *config.ConfigService, badgesJsonMap *map[string][]string) Metadata {
 	var m Metadata
 	genes := g.genes()
 
 	revGenes := reverseGenesOrder(genes)
 
-	m.Attributes = g.attributes(configService, rarityResponse)
+	m.Attributes = g.attributes(configService)
 	m.Name = g.name(configService, tokenId)
 	m.Description = g.description(configService, tokenId)
 	m.ExternalUrl = fmt.Sprintf("%s%s", EXTERNAL_URL, tokenId)

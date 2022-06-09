@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 
@@ -79,4 +80,19 @@ func GetMongoDbCollection(DbName string, CollectionName string) (*mongo.Collecti
 
 	collection := client.Database(DbName).Collection(CollectionName)
 	return collection, nil
+}
+
+// DisconnectDB If we ever get to query rarities-v2 from here, make sure to use this function to disconnect from the DB
+func DisconnectDB() {
+	if instance == nil {
+		return
+	}
+
+	err := instance.Disconnect(context.TODO())
+	if err != nil {
+		log.Errorln("FAILED TO CLOSE Mongo Connection")
+		log.Errorln(err)
+	} else {
+		fmt.Println("Connection to MongoDB closed.")
+	}
 }
