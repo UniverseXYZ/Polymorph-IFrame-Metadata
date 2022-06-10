@@ -2,18 +2,14 @@ package metadata
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/common"
 	"github.com/polymorph-metadata/app/config"
 	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
 	"io/ioutil"
 	"math"
 	"math/big"
 	"net/http"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -295,48 +291,6 @@ func badgeGeneContains(s string, list []string) bool {
 		}
 	}
 	return false
-}
-
-// Counts all morph events for a particular polymorph id but doesn't work for our purposes because 8 morphs for a single trait
-// is still single trait scrambled
-func singleTraitScrambled(id int, ethClient *ethereumclient.EthereumClient) bool {
-	header, err := ethClient.Client.HeaderByNumber(context.Background(), nil)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-	contractAddress := common.HexToAddress(os.Getenv("CONTRACT_ADDRESS"))
-
-	hashedTopic := common.HexToHash("0x8c0bdd7bca83c4e0c810cbecf44bc544a9dc0b9f265664e31ce0ce85f07a052b")
-
-	query := ethereum.FilterQuery{
-		FromBlock: big.NewInt(0),
-		ToBlock:   header.Number,
-		Addresses: []common.Address{
-			contractAddress,
-		},
-		Topics: [][]common.Hash{{hashedTopic}},
-	}
-	logs, err := ethClient.Client.FilterLogs(context.Background(), query)
-	if err != nil {
-		fmt.Println(err.Error())
-	}
-
-	morphCount := 0
-
-	id64 := big.NewInt(int64(id))
-
-	for i := range logs {
-		currentMorphedId := logs[i].Topics[1].Big()
-		if currentMorphedId.Cmp(id64) == 0 {
-			morphCount++
-		}
-		if morphCount > 1 {
-			fmt.Println("MorphCount", morphCount)
-			return false
-		}
-	}
-	fmt.Println("MorphCount", morphCount)
-	return morphCount == 1
 }
 
 func getVirginScrambledBadges(id *big.Int) (isVirgin bool, hasSingleTraitScrambledBadge bool) {
