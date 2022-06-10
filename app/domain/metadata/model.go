@@ -1,15 +1,18 @@
 package metadata
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/polymorph-metadata/app/config"
-	PolymorphRoot "github.com/polymorph-metadata/app/contracts"
 	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
+	"io/ioutil"
 	"math"
 	"math/big"
+	"net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -19,6 +22,7 @@ const POLYMORPH_IMAGE_URL_V1 string = "https://storage.googleapis.com/polymorphs
 const POLYMORPH_IMAGE_URL_V2 string = "https://storage.googleapis.com/polymorph-images_test/"
 const GCLOUD_SOURCE_V1_BUCKET_NAME string = "polymorph-source-images"
 const GCLOUD_SOURCE_V2_BUCKET_NAME string = "polymorph-source-imgs_test"
+const POLYMORPH_V2_THE_GRAPH_HTTP = "https://api.thegraph.com/subgraphs/name/universexyz/polymorph-v2-rinkeby"
 
 const IFRAME_UPLOADED_BASE_URL string = "https://storage.googleapis.com/iframe-htmls/"
 const EXTERNAL_URL string = "https://universe.xyz/polymorphs/"
@@ -335,28 +339,75 @@ func singleTraitScrambled(id int, ethClient *ethereumclient.EthereumClient) bool
 	return morphCount == 1
 }
 
-func assignBadges(id string, ethClient *ethereumclient.EthereumClient, address string, polymorphGenesList *[]string, badgesJsonMap *map[string][]string) *[]string {
+func getVirginScrambledBadges(id *big.Int) (isVirgin bool, hasSingleTraitScrambledBadge bool) {
 
-	contractAddress := common.HexToAddress(address)
-	contract, err := PolymorphRoot.NewPolymorphRoot(contractAddress, ethClient.Client)
+	jsonData := map[string]string{
+		"query": `
+	           {
+	 				tokenMorphedEntities(where:{tokenId:` + id.String() + `, eventType_not: 2}, orderBy: timestamp, orderDirection: asc) {
+	   				tokenId
+					priceForGenomeChange
+	 			}
+				}
+	       `,
+	}
+	jsonValue, _ := json.Marshal(jsonData)
+
+	httpClient := &http.Client{}
+
+	req, err := http.NewRequest("POST", POLYMORPH_V2_THE_GRAPH_HTTP, bytes.NewBuffer(jsonValue))
 	if err != nil {
-		return nil // TODO: Error
+		fmt.Println(err)
 	}
 
-	iTokenId, _ := strconv.Atoi(id)
+	req.Header.Set("Content-Type", "application/json")
 
-	isNotVirgin, _ := contract.IsNotVirgin(nil, big.NewInt(int64(iTokenId)))
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		fmt.Println(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	var jsonMap map[string]map[string][]map[string]string
+	json.Unmarshal([]byte(body), &jsonMap)
+
+	entities := jsonMap["data"]["tokenMorphedEntities"]
+
+	virginBadge := true
+	singleTrait := false
+
+	lenEntities := len(entities)
+
+	if len(entities) > 0 && entities[lenEntities-1]["priceForGenomeChange"] == "10000000000000000" {
+		virginBadge = false
+		singleTrait = false
+		return virginBadge, singleTrait
+	} else if len(entities) > 0 {
+		virginBadge = false
+		singleTrait = true
+		return virginBadge, singleTrait
+	}
+
+	return virginBadge, singleTrait
+}
+
+func assignBadges(id string, polymorphGenesList *[]string, badgesJsonMap *map[string][]string) *[]string {
+
+	iTokenId, _ := strconv.Atoi(id)
 
 	var badges []string
 	var hasBadge bool
 
-	if !isNotVirgin {
+	isVirgin, singleTrait := getVirginScrambledBadges(big.NewInt(int64(iTokenId)))
+
+	if isVirgin {
 		badges = append(badges, "never-scrambled")
 	}
-
-	//if isNotVirgin && singleTraitScrambled(iTokenId, ethClient) {
-	//	badges = append(badges, "single-trait-scrambled")
-	//}
+	if singleTrait {
+		badges = append(badges, "single-trait-scrambled")
+	}
 
 	leftHandGene := (*polymorphGenesList)[7]
 	rightHandGene := (*polymorphGenesList)[8]
@@ -394,7 +445,7 @@ func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address stri
 	m.Name = g.name(configService, tokenId)
 	m.Description = g.description(configService, tokenId)
 	m.ExternalUrl = fmt.Sprintf("%s%s", EXTERNAL_URL, tokenId)
-	m.Badges = assignBadges(tokenId, ethClient, address, &revGenes, badgesJsonMap)
+	m.Badges = assignBadges(tokenId, &revGenes, badgesJsonMap)
 
 	b := strings.Builder{}
 	t := strings.Builder{}
@@ -421,8 +472,6 @@ func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address stri
 	image2DExists := imageExists(image2DURL)
 	image3DExists := imageExists(image3DURL)
 
-	//animationExists := objectExists(animationURL)
-
 	if !image2DExists {
 		generateAndSaveImage(genes, GCLOUD_SOURCE_V1_BUCKET_NAME, GCLOUD_UPLOAD_BUCKET_NAME)
 	}
@@ -433,12 +482,7 @@ func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address stri
 	m.Image2D = image2DURL
 	m.Image3D = image3DURL
 
-	cid := generateAndSaveIFrame(&animationURL, &image2DURL, &image3DURL, m.Badges)
-	//if !animationExists {
-	//	cid = generateAndSaveIFrame(&animationURL, &image2DURL, &image3DURL, m.Badges)
-	//} else {
-	//	cid = cidExists(&animationURL)
-	//}
+	cid := generateAndSaveToIpfs(&animationURL, &image2DURL, &image3DURL, m.Badges)
 
 	m.AnimateUrl = "ipfs://" + cid
 	return m

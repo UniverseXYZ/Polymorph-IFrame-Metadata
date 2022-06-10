@@ -19,6 +19,8 @@ import (
 	"text/template"
 )
 
+const IpfsBaseUploadURL = `https://api.pinata.cloud/pinning/pinFileToIPFS`
+
 type pinataBodyResponse struct {
 	IPFSHash string `json:"IpfsHash"`
 	PinSize  string `json:"PinSize"`
@@ -218,7 +220,8 @@ type TemplateHTML struct {
 	Badges  []Badge
 }
 
-func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *string, badges *[]string) string {
+// generateAndSaveToIpfs Generates the polymorph animation url and uploads it to IPFS
+func generateAndSaveToIpfs(iframeURL *string, image2DURL *string, image3DURL *string, badges *[]string) (cid string) {
 
 	htmlBadges := make([]Badge, len(*badges))
 
@@ -230,13 +233,13 @@ func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *st
 
 	gcloudExists := objectExists(*iframeURL)
 
-	tmpl := template.Must(template.ParseFiles("index.html"))
+	tmpl := template.Must(template.ParseFiles("./serverless_function_source_code/index.html"))
 	data := TemplateHTML{
 		ImgUrls: ImageURLs{*image2DURL, *image3DURL},
 		Badges:  htmlBadges,
 	}
-	tpl := &bytes.Buffer{}
-	if gcloudExists {
+
+	if !gcloudExists { // If false, write the animation html to GCloud
 		ctx := context.Background()
 		client, err := storage.NewClient(ctx)
 
@@ -244,6 +247,8 @@ func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *st
 			log.Errorf("storage.NewClient: %v", err)
 		}
 		defer client.Close()
+
+		tpl := &bytes.Buffer{}
 
 		bucket := client.Bucket(IFRAME_HTMLS_BUCKET_NAME).Object(*iframeURL).NewWriter(ctx)
 
@@ -257,29 +262,29 @@ func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *st
 		}
 	}
 
-	f, err := os.Create("iframe-go.html")
+	f, err := os.Create("/tmp/iframe-go.html")
 	if err != nil {
-		log.Println("create file: ", err)
+		log.Println("create file: ", err.Error())
 	}
 	err = tmpl.Execute(f, data)
 
 	if err != nil {
-		log.Print("execute: ", err)
+		log.Print("Error executing html animation template: ", err.Error())
 	}
 	err = f.Close()
 	if err != nil {
+		log.Println("Error closing file %v %s. Original error ", f.Name(), err.Error())
 	}
 
 	PinataApiKey := os.Getenv("PINATA_API_KEY")
 	PinataSecretKey := os.Getenv("PINATA_SECRET_KEY")
 
-	const IpfsBaseUploadURL = `https://api.pinata.cloud/pinning/pinFileToIPFS`
 	method := "POST"
 	payload := &bytes.Buffer{}
 	writer := multipart.NewWriter(payload)
-	file, errFile1 := os.Open("iframe-go.html")
+	file, errFile1 := os.Open("/tmp/iframe-go.html")
 	defer file.Close()
-	part1, errFile1 := writer.CreateFormFile("file", filepath.Base("iframe-go.html"))
+	part1, errFile1 := writer.CreateFormFile("file", filepath.Base("/tmp/iframe-go.html"))
 
 	_, errFile1 = io.Copy(part1, file)
 	if errFile1 != nil {
@@ -305,16 +310,12 @@ func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *st
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 	//req.Header.Set("Content-Length", string(payload.Len()))
 
-	// Send HTTP Post request
+	// Send HTTP Post request to Pinata
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		fmt.Println(err)
 	}
 	defer resp.Body.Close()
-
-	//dataBody, _ := ioutil.ReadAll(resp.Body)
-
-	//fmt.Println(string(dataBody))
 
 	decoder := json.NewDecoder(resp.Body)
 
@@ -324,7 +325,7 @@ func generateAndSaveIFrame(iframeURL *string, image2DURL *string, image3DURL *st
 
 	httpClient.CloseIdleConnections()
 
-	e := os.Remove("iframe-go.html")
+	e := os.Remove("/tmp/iframe-go.html")
 	if e != nil {
 		log.Fatal(e)
 	}
