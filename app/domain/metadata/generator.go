@@ -29,10 +29,6 @@ type pinataBodyResponse struct {
 const IMG_SIZE = 4000
 
 // New bucket for 3d polymorphs
-const GCLOUD_UPLOAD_BUCKET_NAME = "polymorphs-v1-test"
-const GCLOUD_UPLOAD_3D_BUCKET_NAME = "polymorph-images_test"
-const IFRAME_HTMLS_BUCKET_NAME = "iframe-htmls"
-const BADGE_BASE_URL = "https://storage.googleapis.com/iframe-source/img/badge/"
 
 func imageExists(imageURL string) bool {
 	resp, err := http.Get(imageURL)
@@ -45,12 +41,14 @@ func objectExists(imageURL string) bool {
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 
+	iframeHtmlsBucketName := os.Getenv("IFRAME_HTMLS_BUCKET_NAME")
+
 	if err != nil {
 		log.Errorf("storage.NewClient: %v", err)
 	}
 	defer client.Close()
 
-	bucket := client.Bucket(IFRAME_HTMLS_BUCKET_NAME)
+	bucket := client.Bucket(iframeHtmlsBucketName)
 	exists, err := bucket.Object(imageURL).If(storage.Conditions{DoesNotExist: true}).NewReader(ctx)
 
 	return exists != nil
@@ -225,10 +223,12 @@ func generateAndSaveToIpfs(iframeURL *string, image2DURL *string, image3DURL *st
 
 	htmlBadges := make([]Badge, len(*badges))
 
+	baseBadgeUrl := os.Getenv("BADGE_BASE_URL")
+
 	for i, badge := range *badges {
 		htmlBadges[i].Name = badge
-		htmlBadges[i].URL = fmt.Sprintf("%v%s.svg", BADGE_BASE_URL, badge)
-		(*badges)[i] = fmt.Sprintf("%v%s.svg", BADGE_BASE_URL, badge)
+		htmlBadges[i].URL = fmt.Sprintf("%v%s.svg", baseBadgeUrl, badge)
+		(*badges)[i] = fmt.Sprintf("%v%s.svg", baseBadgeUrl, badge)
 	}
 
 	gcloudExists := objectExists(*iframeURL)
@@ -243,6 +243,8 @@ func generateAndSaveToIpfs(iframeURL *string, image2DURL *string, image3DURL *st
 		ctx := context.Background()
 		client, err := storage.NewClient(ctx)
 
+		iframeHtmlsBucketName := os.Getenv("IFRAME_HTMLS_BUCKET_NAME")
+
 		if err != nil {
 			log.Errorf("storage.NewClient: %v", err)
 		}
@@ -250,7 +252,7 @@ func generateAndSaveToIpfs(iframeURL *string, image2DURL *string, image3DURL *st
 
 		tpl := &bytes.Buffer{}
 
-		bucket := client.Bucket(IFRAME_HTMLS_BUCKET_NAME).Object(*iframeURL).NewWriter(ctx)
+		bucket := client.Bucket(iframeHtmlsBucketName).Object(*iframeURL).NewWriter(ctx)
 
 		if err := tmpl.Execute(tpl, data); err != nil {
 			fmt.Println(err)

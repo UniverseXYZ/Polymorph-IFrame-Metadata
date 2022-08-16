@@ -26,10 +26,11 @@ func setCORS(w http.ResponseWriter, r *http.Request) (write http.ResponseWriter,
 func TokenIframeMetadata(w http.ResponseWriter, r *http.Request) {
 
 	w, r = setCORS(w, r)
-	ethClient := connectToEthereum()
+	ethClient, polygonClient := connectToNodes()
 	contractAddress := os.Getenv("CONTRACT_ADDRESS")
+	contractAddressPolygon := os.Getenv("CONTRACT_ADDRESS_POLYGON")
 
 	configService, badgesJsonMap := config.NewConfigServices("./serverless_function_source_code/config.json", "./serverless_function_source_code/badges-config.json")
 
-	handlers.HandleMetadataRequest(ethClient, contractAddress, configService, badgesJsonMap)(w, r)
+	handlers.HandleMetadataRequest(ethClient, polygonClient, contractAddress, contractAddressPolygon, configService, badgesJsonMap)(w, r)
 }

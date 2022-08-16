@@ -20,7 +20,7 @@ func main() {
 
 	setupLogger()
 
-	ethClient := connectToEthereum()
+	ethClient, polygonClient := connectToNodes()
 
 	port := os.Getenv("API_PORT")
 	if envport := os.Getenv("PORT"); envport == "" {
@@ -28,10 +28,11 @@ func main() {
 	}
 
 	contractAddress := os.Getenv("CONTRACT_ADDRESS")
+	contractAddressPolygon := os.Getenv("CONTRACT_ADDRESS_POLYGON")
 
-	configService, badgesJsonMap := config.NewConfigServices("./config.json", "./artifacts/badges-config.json")
+	configService, badgesJsonMap := config.NewConfigServices("./config.json", "./badges-config.json")
 
-	funcframework.RegisterHTTPFunction("/token", handlers.HandleMetadataRequest(ethClient, contractAddress, configService, badgesJsonMap))
+	funcframework.RegisterHTTPFunction("/token", handlers.HandleMetadataRequest(ethClient, polygonClient, contractAddress, contractAddressPolygon, configService, badgesJsonMap))
 
 	if err := funcframework.Start(port); err != nil {
 		log.Fatalf("funcframework.Start: %v\n", err)

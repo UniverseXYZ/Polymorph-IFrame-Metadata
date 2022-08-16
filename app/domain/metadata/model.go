@@ -5,23 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/polymorph-metadata/app/config"
-	"github.com/polymorph-metadata/app/interface/dlt/ethereum"
+	log "github.com/sirupsen/logrus"
 	"io/ioutil"
 	"math"
 	"math/big"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 )
 
-const POLYMORPH_IMAGE_URL_V1 string = "https://storage.googleapis.com/polymorphs-v1-test/"
-const POLYMORPH_IMAGE_URL_V2 string = "https://storage.googleapis.com/polymorph-images_test/"
-const GCLOUD_SOURCE_V1_BUCKET_NAME string = "polymorph-source-images"
-const GCLOUD_SOURCE_V2_BUCKET_NAME string = "polymorph-source-imgs_test"
-const POLYMORPH_V2_THE_GRAPH_HTTP = "https://api.thegraph.com/subgraphs/name/universexyz/polymorph-v2-rinkeby"
-
-const IFRAME_UPLOADED_BASE_URL string = "https://storage.googleapis.com/iframe-htmls/"
-const EXTERNAL_URL string = "https://universe.xyz/polymorphs/"
+const IFRAME_UPLOADED_BASE_URL string = "https://storage.googleapis.com/iframe-htmls-mainnet/"
+const EXTERNAL_URL string = "https://polymorphs.universe.xyz/polymorphs/"
 const GENES_COUNT = 9
 const BACKGROUND_GENE_COUNT int = 12
 const BASE_GENES_COUNT int = 11
@@ -293,6 +288,10 @@ func badgeGeneContains(s string, list []string) bool {
 	return false
 }
 
+func hasLeftOrRightHandRequirement(leftHand *string, rightHand *string, list []string) bool {
+	return badgeGeneContains(*leftHand, list) || badgeGeneContains(*rightHand, list)
+}
+
 func getVirginScrambledBadges(id *big.Int) (isVirgin bool, hasSingleTraitScrambledBadge bool) {
 
 	jsonData := map[string]string{
@@ -309,7 +308,13 @@ func getVirginScrambledBadges(id *big.Int) (isVirgin bool, hasSingleTraitScrambl
 
 	httpClient := &http.Client{}
 
-	req, err := http.NewRequest("POST", POLYMORPH_V2_THE_GRAPH_HTTP, bytes.NewBuffer(jsonValue))
+	polymorphV2TheGraphHttp := os.Getenv("POLYMORPH_V2_THE_GRAPH_HTTP")
+
+	if polymorphV2TheGraphHttp == "" {
+		log.Error("Couldn't get the env variable for the polymorph-v2-the-graph-http")
+	}
+
+	req, err := http.NewRequest("POST", polymorphV2TheGraphHttp, bytes.NewBuffer(jsonValue))
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -334,6 +339,7 @@ func getVirginScrambledBadges(id *big.Int) (isVirgin bool, hasSingleTraitScrambl
 
 	lenEntities := len(entities)
 
+	// this means that the last transaction is randomizeGenome() => neither virgin badge nor single trait scrambled badge
 	if len(entities) > 0 && entities[lenEntities-1]["priceForGenomeChange"] == "10000000000000000" {
 		virginBadge = false
 		singleTrait = false
@@ -354,6 +360,8 @@ func assignBadges(id string, polymorphGenesList *[]string, badgesJsonMap *map[st
 	var badges []string
 	var hasBadge bool
 
+	lightsabers := []string{"08", "13", "14", "15", "20", "25", "26"}
+
 	isVirgin, singleTrait := getVirginScrambledBadges(big.NewInt(int64(iTokenId)))
 
 	if isVirgin {
@@ -366,15 +374,22 @@ func assignBadges(id string, polymorphGenesList *[]string, badgesJsonMap *map[st
 	leftHandGene := (*polymorphGenesList)[7]
 	rightHandGene := (*polymorphGenesList)[8]
 
-	if leftHandGene != "00" && rightHandGene != "00" && leftHandGene == rightHandGene {
+	// Any combination of double-degen swords and degen swords should be akimbo
+	if badgeGeneContains(leftHandGene, lightsabers) && badgeGeneContains(rightHandGene, lightsabers) {
+		badges = append(badges, "akimbo")
+	} else if leftHandGene != "00" && rightHandGene != "00" && leftHandGene == rightHandGene {
 		badges = append(badges, "akimbo")
 	}
 
+	numBadgeRequirements := 7 // All badge requirements are 9, but we check left and right weapons separately
+
 	for badge, geneReqs := range *badgesJsonMap {
 		hasBadge = true
-		for i, genes := range geneReqs {
-			if genes != "**" {
-				requirements := strings.Split(genes, "/")
+		// The new logic will be that left hand requirement and right hand requirement should be with ORs
+		hasEitherLeftHandOrRightHand := hasLeftOrRightHandRequirement(&leftHandGene, &rightHandGene, geneReqs[7:9])
+		for i := 0; i < numBadgeRequirements; i++ {
+			if geneReqs[i] != "**" {
+				requirements := strings.Split(geneReqs[i], "/")
 				geneHasBadgeRequirement := badgeGeneContains((*polymorphGenesList)[i], requirements)
 				if !geneHasBadgeRequirement {
 					hasBadge = false
@@ -382,14 +397,14 @@ func assignBadges(id string, polymorphGenesList *[]string, badgesJsonMap *map[st
 				}
 			}
 		}
-		if hasBadge {
+		if hasBadge && hasEitherLeftHandOrRightHand {
 			badges = append(badges, badge)
 		}
 	}
 	return &badges
 }
 
-func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address string, tokenId string, configService *config.ConfigService, badgesJsonMap *map[string][]string) Metadata {
+func (g *Genome) Metadata(tokenId string, configService *config.ConfigService, badgesJsonMap *map[string][]string) Metadata {
 	var m Metadata
 	genes := g.genes()
 
@@ -405,8 +420,11 @@ func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address stri
 	t := strings.Builder{}
 	d := strings.Builder{}
 
-	b.WriteString(POLYMORPH_IMAGE_URL_V1) // Start with base url
-	t.WriteString(POLYMORPH_IMAGE_URL_V2)
+	polymorphImageUrlV1 := os.Getenv("POLYMORPH_IMAGE_URL_V1")
+	polymorphImageUrlV2 := os.Getenv("POLYMORPH_IMAGE_URL_V2")
+
+	b.WriteString(polymorphImageUrlV1) // Start with base url
+	t.WriteString(polymorphImageUrlV2)
 	// d.WriteString(POLYMORPH_HTML_URL) // Start with HTML BaseURL
 
 	for _, gene := range genes {
@@ -426,11 +444,17 @@ func (g *Genome) Metadata(ethClient *ethereumclient.EthereumClient, address stri
 	image2DExists := imageExists(image2DURL)
 	image3DExists := imageExists(image3DURL)
 
+	gcloudSourceV1BucketName := os.Getenv("GCLOUD_SOURCE_V1_BUCKET_NAME")
+	gcloudSourceV2BucketName := os.Getenv("GCLOUD_SOURCE_V2_BUCKET_NAME")
+
+	gCloudUploadBucketName := os.Getenv("GCLOUD_UPLOAD_BUCKET_NAME")
+	gCloudUploadBucketName3D := os.Getenv("GCLOUD_UPLOAD_3D_BUCKET_NAME")
+
 	if !image2DExists {
-		generateAndSaveImage(genes, GCLOUD_SOURCE_V1_BUCKET_NAME, GCLOUD_UPLOAD_BUCKET_NAME)
+		generateAndSaveImage(genes, gcloudSourceV1BucketName, gCloudUploadBucketName)
 	}
 	if !image3DExists {
-		generateAndSaveImage(genes, GCLOUD_SOURCE_V2_BUCKET_NAME, GCLOUD_UPLOAD_3D_BUCKET_NAME)
+		generateAndSaveImage(genes, gcloudSourceV2BucketName, gCloudUploadBucketName3D)
 	}
 
 	m.Image2D = image2DURL
